@@ -22,57 +22,57 @@ func NewGrafanaDashboard(templateContents string) *GrafanaDashboard {
 
 // Update the contents of the Grafana dashboard template with Azure resource IDs
 func (dashboard *GrafanaDashboard) update(title string, dataSourceName string, maxDashboardResources int, armResources []ArmResource, subResourceName string) {
-	//var rowsJson []interface{}
+	var rowsJson []interface{}
 	var panelsJson []interface{}
 	var targetsJson []interface{}
 
 	dashboard.ParsedJson["title"] = title
-	// rowsJson = dashboard.ParsedJson["rows"].([]interface{})
-	// for _, rowJsonObject := range rowsJson {
-	// 	rowJson := rowJsonObject.(map[string]interface{})
-	// panelsJson = rowJson["panels"].([]interface{})
-	panelsJson = dashboard.ParsedJson["panels"].([]interface{})
-	for _, panelJsonObject := range panelsJson {
-		panelJson := panelJsonObject.(map[string]interface{})
-		panelJson["datasource"] = dataSourceName
+	rowsJson = dashboard.ParsedJson["rows"].([]interface{})
+	for _, rowJsonObject := range rowsJson {
+		rowJson := rowJsonObject.(map[string]interface{})
+		panelsJson = rowJson["panels"].([]interface{})
+		// panelsJson = dashboard.ParsedJson["panels"].([]interface{})
+		for _, panelJsonObject := range panelsJson {
+			panelJson := panelJsonObject.(map[string]interface{})
+			panelJson["datasource"] = dataSourceName
 
-		targetsJson = panelJson["targets"].([]interface{})
-		if len(targetsJson) > 0 {
-			// Only the first target matters.
-			targetJson := targetsJson[0].(map[string]interface{})
-			azureMonitorTargetJson := targetJson["azureMonitor"].(map[string]interface{})
+			targetsJson = panelJson["targets"].([]interface{})
+			if len(targetsJson) > 0 {
+				// Only the first target matters.
+				targetJson := targetsJson[0].(map[string]interface{})
+				azureMonitorTargetJson := targetJson["azureMonitor"].(map[string]interface{})
 
-			newTargetsJson := make([]map[string]interface{}, 0)
-			upperBound := len(armResources)
-			if maxDashboardResources < upperBound {
-				upperBound = maxDashboardResources
-			}
-
-			// For each ARM resource, we will generate new target
-			for _, armResource := range armResources[:upperBound] {
-				newAzureMonitorTargetJson := copyMap(azureMonitorTargetJson)
-				newAzureMonitorTargetJson["resourceGroup"], _ = armResource.getResourceGroupName()
-
-				// This is a workaround to handle sub-resource cases such as Microsoft.Storage/storageAccounts/blobServices
-				// where ARM does not track the sub-resource "blobServices".
-				// In such case, the resource name is {storageAccountName}/default and it's expected the client passes in
-				// the sub-resource name "default"
-				resourceName := armResource.getResourceName()
-				if len(subResourceName) > 0 {
-					resourceName += "/" + subResourceName
+				newTargetsJson := make([]map[string]interface{}, 0)
+				upperBound := len(armResources)
+				if maxDashboardResources < upperBound {
+					upperBound = maxDashboardResources
 				}
 
-				newAzureMonitorTargetJson["resourceName"] = resourceName
+				// For each ARM resource, we will generate new target
+				for _, armResource := range armResources[:upperBound] {
+					newAzureMonitorTargetJson := copyMap(azureMonitorTargetJson)
+					newAzureMonitorTargetJson["resourceGroup"], _ = armResource.getResourceGroupName()
 
-				newTargetJson := copyMap(targetJson)
-				newTargetJson["azureMonitor"] = newAzureMonitorTargetJson
-				newTargetsJson = append(newTargetsJson, newTargetJson)
+					// This is a workaround to handle sub-resource cases such as Microsoft.Storage/storageAccounts/blobServices
+					// where ARM does not track the sub-resource "blobServices".
+					// In such case, the resource name is {storageAccountName}/default and it's expected the client passes in
+					// the sub-resource name "default"
+					resourceName := armResource.getResourceName()
+					if len(subResourceName) > 0 {
+						resourceName += "/" + subResourceName
+					}
+
+					newAzureMonitorTargetJson["resourceName"] = resourceName
+
+					newTargetJson := copyMap(targetJson)
+					newTargetJson["azureMonitor"] = newAzureMonitorTargetJson
+					newTargetsJson = append(newTargetsJson, newTargetJson)
+				}
+
+				panelJson["targets"] = newTargetsJson
 			}
-
-			panelJson["targets"] = newTargetsJson
 		}
 	}
-	//}
 }
 
 func copyMap(originalMap map[string]interface{}) map[string]interface{} {
